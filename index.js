@@ -3,7 +3,7 @@ import http from 'node:http';
 import { createBareServer } from '@tomphttp/bare-server-node';
 import cors from 'cors';
 import path from "path";
-import { hostname } from "node:os"
+import { hostname } from "node:os";
 
 const server = http.createServer();
 const app = express(server);
@@ -12,58 +12,48 @@ const bareServer = createBareServer('/b/');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(__dirname + '/public'));
+
+// Serve the 'public' folder
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors());
+
+// Route specific requests for files inside public/uv
+app.use('/uv', express.static(path.join(__dirname, 'public/uv')));
 
 server.on('request', (req, res) => {
     if (bareServer.shouldRoute(req)) {
-        bareServer.routeRequest(req, res)
+        bareServer.routeRequest(req, res);
     } else {
-        app(req, res)
+        app(req, res);
     }
-})
+});
 
 server.on('upgrade', (req, socket, head) => {
     if (bareServer.shouldRoute(req)) {
-        bareServer.routeUpgrade(req, socket, head)
+        bareServer.routeUpgrade(req, socket, head);
     } else {
-        socket.end()
+        socket.end();
     }
-})
+});
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(process.cwd(), '/public/index.html'));
+    res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
-app.get('/index', (req, res) => {
-    res.sendFile(path.join(process.cwd(), '/public/index.html'));
+// Catch-all for other routes to handle client-side routing if needed
+app.get('*', (req, res) => {
+    // Only send index.html if it's not a bare request or API call
+    if (!req.url.startsWith('/b/') && !req.url.startsWith('/uv/')) {
+       res.sendFile(path.join(__dirname, 'public/index.html'));
+    }
 });
 
-/* add your own extra urls like this:
+const PORT = process.env.PORT || 3000;
 
-app.get('/pathOnYourSite', (req, res) => {
-    res.sendFile(path.join(process.cwd(), '/linkToItInYourSource'));
-});
-
-*/
-
-const PORT = 3000;
-server.on('listening', () => {
+server.listen(PORT, () => {
     const address = server.address();
-
-    console.log("Listening on:");
-    console.log(`\thttp://localhost:${address.port}`);
-    console.log(`\thttp://${hostname()}:${address.port}`);
-    console.log(
-        `\thttp://${address.family === "IPv6" ? `[${address.address}]` : address.address
-        }:${address.port}`
-    );
-})
-
-server.listen({ port: PORT, })
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+    console.log(`Kivro Proxy Running on port ${PORT}`);
+});
 
 function shutdown() {
     console.log("SIGTERM signal received: closing HTTP server");
@@ -71,3 +61,6 @@ function shutdown() {
     bareServer.close();
     process.exit(0);
 }
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
